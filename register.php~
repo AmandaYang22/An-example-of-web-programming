@@ -1,0 +1,191 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=gb2312">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>注册</title>
+
+
+<link href="bootstrap/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+<link href="bootstrap/css/bootstrap.min.css" rel="stylesheet" type="text/css">
+<link href="bootstrap/css/bootstrap.css" rel="stylesheet">
+<script src="confirm/jquery/jquery.min.js"></script>
+<script src="bootstrap/js/bootstrap.min.js"></script>
+<script src="bootstrap/jquery.js"></script>
+<script src="bootstrap/ajax.js"></script>
+<style type="text/css">
+.form-signin{
+	max-width: 300px;
+	padding: 19px 29px 29px;
+	margin: 0 auto 20px;
+	background-color: #fff;
+	border: 1px solid #e5e5e5;
+	-webkit-border-radius:5px;
+		-moz-border-radius:5px;
+			border-radius:5px;
+	-webkit-box-shadow:0 1px 2px rgba(0,0,0,.05);
+		-moz-box-shadow:0 1px 2px rgba(0,0,0,.05);
+			box-shadow: 0 1px 2px rgba(0,0,0,.05);
+}
+.select-form{
+    width:207.8px;
+    margin-top:2px;
+}
+</style>
+</head>
+<script type="text/javascript">
+function checkName(name){
+//	alert("lala");	
+//	alert("myform.name.value");
+//	alert(myform.name.value);
+	if(myform.name.value=="")
+	{
+	    alert("请输入注册名！");
+	    myform.name.focus();
+	    return false;
+	}			
+	else{	
+		var userName=document.getElementById("name").value;
+		//	var Expression=/^(\w){5,10}$/;
+		var Expression=/^[\u4e00-\u9fa5]{2,7}$/;
+	//	var Expression=/^\w+$/;
+		var objExp=new RegExp(Expression);			   
+		if(objExp.test(userName)==false)
+		{	
+			alert("注册名是2-7个汉字");
+			myform.name.focus();	
+		}
+		else
+		{
+		// JavaScript Document
+		 var XHR;    //定义一个全局对象
+		 function createXHR(){              //首先我们得创建一个XMLHttpRequest对象
+		 if(window.ActiveXObject){//IE的低版本系类
+			 XHR=new ActiveXObject('Microsoft.XMLHTTP');//之前IE垄断了整个浏览器市场，没遵循W3C标准，所以就有了这句代码但IE6之后开始有所改观
+		 }else if(window.XMLHttpRequest){//非IE系列的浏览器，但包括IE7 IE8
+      			 XHR=new XMLHttpRequest();
+                 }
+                 }
+		 function checkname(){
+                         var username=myform.name.value;
+			 createXHR();    
+			 alert(username);
+                         XHR.open("GET","checkname.php?id="+username,true);//true:表示异步传输，而不等send()方法返回结果，这正是ajax的核心思想
+                         XHR.onreadystatechange=byhongfei;//当状态改变时，调用byhongfei这个方法，方法的内容我们另外定义
+                         XHR.send(null);
+                 }
+	         function byhongfei(){
+			if(XHR.readyState == 4){//关于Ajax引擎对象中的方法和属性
+      				if(XHR.status == 200){    
+	                                 var textHTML=XHR.responseText;            
+	                                 document.getElementById('name_status').innerHTML=textHTML;
+	                                 }
+	                 }
+		}
+		 createXHR();
+		 checkname();
+		 byhongfei();
+	        }
+	}
+} 
+function checkPassword(password){
+	if(myform.password.value==""){
+	  	alert("请输入密码！");
+  		myform.password.focus();
+		return false;
+	}	
+	/*alert("密码");
+	alert(password);
+	alert("myform.password.value");*/
+//	alert(myform.password.value);
+	var str=myform.password.value;
+	var Expression=/^[a-zA-Z](\w){5,10}$/;
+	var objExp=new RegExp(Expression);
+	if(objExp.test(str) == false){
+		 alert("密码以字母开头，长度在6-10之间，只能包含字符、数字和下划线");
+		 myform.password.focus(); 
+	}
+}
+function checkRepassword(repassword){
+	var passwd1=document.getElementById("password").value;
+	var passwd2=document.getElementById("repassword").value;
+//	alert("passwd1");
+//	alert(passwd1);
+///	alert("passwd2");
+//	alert(passwd2);
+	if(passwd2==""){
+		alert("请再次输入密码");
+		myform.repassword.focus();
+		return false;
+	}
+	//alert(passwd2);
+	if(passwd2!=passwd1){
+	/*	alert("2passwd1");
+		alert(passwd1);
+		alert("2passwd2");
+		alert(passwd2);*/
+		alert("两次输入不一致");
+		myform.repassword.focus();
+	}
+}
+
+function checkEmail(email){
+	if(myform.email.value==""){
+		alert("请输入邮箱");
+		myform.email.focus();
+	        return false;						
+	}       
+	var str=myform.email.value;
+//	alert(str);
+	var Expression=/^[A-Za-z\d]+([-_.][A-Za-z\d]+)*@([A-Za-z\d]+[-.])+[A-Za-z\d]{2,4}$/;
+	var objExp=new RegExp(Expression);
+	if(objExp.test(str)==false){
+		alert("请输入正确的邮箱地址");
+		myform.email.focus();
+	}
+}
+</script>
+<body>
+  <div class="container">			
+	<form class="form-signin" name="myform"   action="confirm/checkreg.php" method="post">
+		<div class="col-10">
+			<h2 class="form-signin-heading">Please sign in</h2>
+		</div>	
+		<div class="col-10">		          	
+			<input type="text" class="input-block-level" name="name" id="name" placeholder="name" onchange="checkName(name);"><span id="name_status"></span>
+		</div>              
+		<div class="col-10">
+		        <input type="password" class="input-block-level" name="password" id="password" placeholder="password" onchange="checkPassword(password);">
+		</div>
+		<div class="col-10">
+		        <input type="password" class="input-block-level" name="repassword" id="repassword" placeholder="repassword" onchange="checkRepassword(repassword);">
+		</div>
+		<div class="col-10">
+		        <input type="email" class="input-block-level" name="email" id="email" placeholder="email" onchange="checkEmail(email);">
+		</div>
+		<div class="col-10">
+			<select name="type" class="select-form">
+				  <option value="student">student</option>
+				  <option value="teacher">teacher</option>
+			</select>
+		</div>
+		<div class="col-10">
+		        <label for="message" class="col-2 col-form-label">申请账号说明 *</label>
+		           <textarea rows="8" cols="50" class="form-control" name="message" id="message" placeholder=""></textarea>
+		</div>
+		 <div class="col-10">
+		         <div class="checkbox">
+		             <label>
+		                  <input type="checkbox"> I agree
+		             </label>
+		         </div>		            
+		  </div>
+		  <div class="col-10">
+		            <input type="submit" value="注册" class="btn btn-success pull-left">
+		   </div>
+		</form>		      
+	</div>
+</body>
+</html>
