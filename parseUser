@@ -1,0 +1,245 @@
+#include <cstdio>
+#include <cstring>
+#include <string.h>
+#include <cstdlib>
+#include <errno.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <time.h>
+#include <netinet/if_ether.h>
+#include <netinet/ip.h> 
+#include <netinet/tcp.h>
+#include <sys/types.h>
+#include <pcap.h>
+#include <iostream>
+#include <sstream>
+#include "mysql.h"
+#include "zlib.h"
+#include <dlfcn.h>
+
+#define URL_MAX_LEN 2048
+#define MAX_HOST_LEN 1024
+#define MAX_GET_LEN 2048
+
+#define get_u_int8_t(X,O)  (*(uint8_t *)(((uint8_t *)X) + O))
+#define get_u_int16_t(X,O)  (*(uint16_t *)(((uint8_t *)X) + O))
+#define get_u_int32_t(X,O)  (*(uint32_t *)(((uint8_t *)X) + O))
+#define get_u_int64_t(X,O)  (*(uint64_t *)(((uint8_t *)X) + O))
+using namespace std;
+
+typedef unsigned char u_char;
+typedef char *(*PCall_func1)(char *);
+pcap_t *handle=NULL;//�Ự���
+char errorbuf[100];//�洢������Ϣ
+struct pcap_pkthdr pkthdr;
+struct bpf_program filter;//�ѱ���õĹ�����
+const unsigned char *packet=NULL;
+bpf_u_int32 mask=0;
+int http_count=0,pop3_count=0,smtp_count=0,QICQ=0;
+char httpFilter[]="tcp port 80";//������˱���ʽ
+char file[]="/tmp/traffic.pcap";
+int count=0;
+void sniffer(char *filter_app);
+void get_packet(u_char *user,const struct pcap_pkthdr *pkthdr,const u_char *packet);
+int prase_packet(const char *buf,int caplen); 
+int packet_http_handle(const u_char *tcp_payload,int payload_len);
+string to_string(int n);
+int prase_http_head(const u_char *payload, int payload_len, char *url);
+//char *dynamic_call_library_func(char *libName,char *funcName,char *myUrl);
+int ret=-1;
+int flag=-1; 
+char *geturl;
+char *tmpurl;
+int main(int argc,char *argv[])
+{	
+	char a[100]="",c[100]="";//*b=NULL,*c=NULL,*d=NULL;
+	char *b=NULL,*d=NULL;
+	sniffer(httpFilter);
+	printf("http���У�%d��\n",http_count);
+	cout<<"count:"<<count<<endl;
+	return 0; 
+}
+
+int prase_http_head(const u_char *payload, int payload_len, char *url)
+{
+	int line_len,offset;
+	int ustrlen;
+	int hstrlen;//"host:"
+	int hostlen;
+	int getlen;
+	char host[MAX_HOST_LEN]={0};
+	char get[MAX_GET_LEN]={0};
+	int a,b;
+	if(memcmp(payload,"GET ",4)){//�Ƚ��ڴ�����buf1��buf2��ǰcount���ֽ�
+		ret=0;
+		return ret;
+    }
+	for(a=0,b=0;a<payload_len-1;a++)
+	{
+		if(get_u_int16_t(payload,a)==ntohs(0x0d0a))
+		{
+			line_len=(u_int16_t)(((unsigned long)&payload[a])-((unsigned long)&payload[b]));
+			if(line_len>=(9+4)&&memcmp(&payload[line_len-9]," HTTP/1.",8)==0){
+				memcpy(get,payload+4,line_len-13);//"GET HTTP/1.x"  13bit
+				getlen=line_len-13;
+			}
+			//get url host of packet
+			if(line_len>6&&memcmp(&payload[b],"Host:",5)==0){
+				if(*(payload+b+5)==' '){
+					hstrlen=b+6;
+				}else{
+					hstrlen=b+5;
+				}
+				hostlen=a-hstrlen;
+				memcpy(host,payload+hstrlen,(a-hstrlen));
+			}
+			b=a+2;
+		}
+	}
+	
+	offset=7;
+	memcpy(url,"http://",offset);
+	memcpy(url+offset,host,hostlen);
+	offset+=hostlen;
+	memcpy(url+offset,get,getlen);
+	int url_len=strlen(url);
+	return url_len; 
+}
+
+
+
+int packet_http_handle(const u_char *tcp_payload,int payload_len)
+{
+	int url_len=-1;
+	char url[15000];
+	url_len=prase_http_head(tcp_payload,payload_len,url);
+	if(url_len==0)
+	{ 
+		flag=0;
+		return 0;
+	}
+	else
+	{
+		geturl=url;
+		tmpurl=url;
+		cout<<"geturl:"<<geturl<<endl; 
+		
+	}
+	return 0;
+}
+
+
+int prase_packet(const u_char *buf,int caplen)
+{
+	uint16_t e_type;
+	uint32_t offset;
+	int payload_len;
+    const	u_char *tcp_payload=NULL;
+	int RET;
+	/*ethernet header*/
+	struct ethhdr *eth=NULL;
+	eth=(struct ethhdr*)buf;
+	e_type=ntohs(eth->h_proto);
+	offset=sizeof(struct ethhdr);//֡ͷ�ĳ���
+	while(e_type==ETH_P_8021Q){
+		e_type=(buf[offset+2]<<8)+buf[offset+3];
+		offset+=4;
+	}
+	if(e_type!=ETH_P_IP){
+		return -1;
+	}
+	
+	/*ip header*/
+	struct iphdr *ip=(struct iphdr*)(buf+offset);
+	e_type=ntohs(ip->protocol);
+	offset+=sizeof(struct iphdr);//ipͷ�ĳ��� 
+	
+	if(ip->protocol!=IPPROTO_TCP){/*http����tcp*/ 
+		return -1;
+	}
+	struct tcphdr *tcp=(struct tcphdr *)(buf+offset);
+	offset+=(tcp->doff<<2);//tcphdr->doff  TCPͷ����
+	int length=sizeof(tcphdr);
+	payload_len=caplen-offset;//payload�ĳ��� 
+	tcp_payload=(buf+offset);
+	packet_http_handle(tcp_payload,payload_len);
+	return 0;
+	
+}
+string to_string(int n)
+{
+	ostringstream stream;
+	stream<<n;  //nΪint����
+	return stream.str();
+}
+void get_packet(u_char *user,const struct pcap_pkthdr *pkthdr,const u_char *packet)
+{ 
+	MYSQL my_connection;
+	MYSQL *conn_ptr1,*conn_ptr2;
+	int res;
+	char sql_insert[5000];
+	uLong getcrc;
+	
+	char *myurl=NULL;//��URL����crcУ�� 
+	char crc[500];
+    prase_packet(packet,pkthdr->len);
+	getcrc=crc32(0,(const Bytef*)tmpurl,500);
+	sprintf(crc,"%ul",getcrc);
+	conn_ptr1=mysql_init(&my_connection);
+	if(!conn_ptr1){
+			fprintf(stderr,"mysql_init failed\n");	
+	} 
+	conn_ptr2=mysql_real_connect(&my_connection,"localhost","n152127","123456","ex151002127",0,NULL,0);
+	if(conn_ptr2){
+			printf("connection success\n");
+	}else{
+			printf("connection failed\n",mysql_error(&my_connection));
+	}
+	
+	
+	if(flag!=0)
+	{
+		
+		cout<<endl;
+		cout<<"packet id:"<<count;
+		cout<<" Recieved time:"<<ctime((const time_t *)&pkthdr->ts.tv_sec)<<endl;
+		cout<<"--------------HTTP--------------"<<endl;
+		cout<<" geturl:"<<geturl<<endl;
+		string temp=to_string(count);
+		sprintf(sql_insert,"insert into url values('%s','%s','%s','%s','%d');",temp.c_str(),geturl,crc,ctime((const time_t *)&pkthdr->ts.tv_sec),1);
+		int retur=mysql_query(&my_connection,sql_insert);
+		if(retur!=0)
+		{
+			printf("error:%s\n", mysql_error(&my_connection));  
+		    exit(1); 
+		}
+		count++;
+	}
+	
+	flag=-1;
+	mysql_close(&my_connection);
+} 
+
+void sniffer(char *filter_app)
+{
+	int count=0;
+	if((handle=pcap_open_offline(file,errorbuf))==NULL)
+	{
+		printf("%s\n",errorbuf);
+		exit(1);
+	 } 
+    if(pcap_compile(handle,&filter,filter_app,1,mask)==-1){
+		fprintf(stderr,"ERROR:%s\n",pcap_geterr(handle));
+		exit(1);
+	}
+	
+	if(pcap_setfilter(handle,&filter)==-1)//�ɹ�����0 
+	{
+		fprintf(stderr,"ERROR:%s\n",pcap_geterr(handle));
+		exit(1);
+	}
+	
+	pcap_loop(handle,0,get_packet,NULL);
+	pcap_close(handle);
+}
